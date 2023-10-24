@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>3D Car Game</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="myCanvas"></canvas>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/104/three.js"></script>
+  <script src="GLTFLoader.js"></script>
+  <script src="OrbitControls.js"></script>
+  <script>
+    var scene = new THREE.Scene();
+    var height = window.innerHeight;
+    var width = window.innerWidth;
+    var distance = 1000;
+    var diag = Math.sqrt(height * height + width * width);
+    var fov = (2 * Math.atan(diag / (2 * distance)) * 180) / Math.PI;
+    var camera = new THREE.PerspectiveCamera(fov, width / height, 0.1, distance);
+
+    var myCanvas = document.getElementById('myCanvas');
+    var renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      canvas: myCanvas,
+      alpha: true,
+    });
+
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.gammaInput = true;
+    renderer.gammaOutput = true;
+    renderer.antialias = true;
+
+    renderer.setClearColor(0x000000, 0);
+
+    document.body.appendChild(renderer.domElement);
+
+    var ambientLight = new THREE.AmbientLight(0x404040, 2);
+    scene.add(ambientLight);
+
+    var pointLight1 = new THREE.PointLight(0xffffff, 1, 100);
+    pointLight1.position.set(10, 10, 10);
+    scene.add(pointLight1);
+
+    var pointLight2 = new THREE.PointLight(0xffffff, 1, 100);
+    pointLight2.position.set(-10, 10, -10);
+    scene.add(pointLight2);
+
+    var pointLight3 = new THREE.PointLight(0xffffff, 1, 100);
+    pointLight3.position.set(10, 10, -10);
+    scene.add(pointLight3);
+
+    var pointLight4 = new THREE.PointLight(0xffffff, 1, 100);
+    pointLight4.position.set(-10, 10, 10);
+    scene.add(pointLight4);
+
+    var orbit = new THREE.OrbitControls(camera, renderer.domElement);
+    orbit.maxPolarAngle = Math.PI / 2;
+    orbit.update();
+
+    var loader = new THREE.GLTFLoader();
+    var car;
+    var wheels = [];
+
+    var speed = 0;
+    var turnAngle = 0;
+    var isBraking = false;
+
+    var roadTexture = new THREE.TextureLoader().load('./car/road.jpg');
+    roadTexture.wrapS = roadTexture.wrapT = THREE.RepeatWrapping;
+    roadTexture.repeat.set(20, 20);
+
+    var roadMaterial = new THREE.MeshBasicMaterial({ map: roadTexture });
+    var roadGeometry = new THREE.PlaneGeometry(200, 200); 
+    var roadPlane = new THREE.Mesh(roadGeometry, roadMaterial);
+    roadPlane.rotation.x = -Math.PI / 2;
+    scene.add(roadPlane);
+
+    loader.load('./car/scene.gltf', function (gltf) {
+      car = gltf.scene;
+      car.position.set(0, 0, 0); 
+      scene.add(car);
+
+      car.traverse(function (child) {
+        if (child.isMesh && (child.name === 'Wheel1' || child.name === 'Wheel2' || child.name === 'Wheel3' || child.name === 'Wheel4')) {
+          wheels.push(child);
+        }
+      });
+    });
+
+    document.addEventListener('keydown', function (event) {
+      switch (event.key) {
+        case 'ArrowLeft':
+          turnAngle = 0.02; 
+          break;
+        case 'ArrowRight':
+          turnAngle = -0.02; 
+          break;
+        case 'ArrowUp':
+          speed = 0.1; 
+          break;
+        case 'ArrowDown':
+          speed = -0.1;
+          break;
+        case ' ':
+          isBraking = true; 
+          break;
+        case 'Shift':
+          speed *= 2;
+          break;
+      }
+    });
+
+    document.addEventListener('keyup', function (event) {
+      switch (event.key) {
+        case 'ArrowLeft':
+        case 'ArrowRight':
+          turnAngle = 0; 
+          break;
+        case 'ArrowUp':
+        case 'ArrowDown':
+          speed = 0; 
+          break;
+        case ' ':
+          isBraking = false; 
+          break;
+        case 'Shift':
+          speed /= 2; 
+          break;
+      }
+    });
+
+    function updateCar() {
+      if (car) {
+        car.rotation.y += turnAngle;
+        if (isBraking) {
+          speed *= 0.9;
+        }
+        car.translateZ(speed);
+      }
+    }
+
+    function updateWheelsRotation() {
+      if (wheels.length > 0) {
+        for (var i = 0; i < wheels.length; i++) {
+          wheels[i].rotation.x += speed * 5; 
+        }
+      }
+    }
+
+    function updateCameraAndLight() {
+      if (car) {
+        camera.position.set(car.position.x, car.position.y + 5, car.position.z + 10);
+        camera.lookAt(car.position);
+
+        pointLight1.position.copy(car.position).add(new THREE.Vector3(10, 10, 10));
+        pointLight2.position.copy(car.position).add(new THREE.Vector3(-10, 10, -10));
+        pointLight3.position.copy(car.position).add(new THREE.Vector3(10, 10, -10));
+        pointLight4.position.copy(car.position).add(new THREE.Vector3(-10, 10, 10));
+      }
+    }
+
+    function render() {
+      renderer.toneMappingExposure = Math.pow(0.7, 5.0);
+      requestAnimationFrame(render);
+
+      updateCar();
+
+      updateWheelsRotation();
+
+      updateCameraAndLight();
+
+      renderer.render(scene, camera);
+    }
+
+    render();
+  </script>
+</body>
+</html>
